@@ -2,6 +2,7 @@
 Script Name    : 05_file_format_stage.sql
 
 Project        : IPL Analytics Platform
+Author         : Amit
 
 Purpose
 -------
@@ -15,6 +16,17 @@ Why Stage?
 -----------
 Acts as a landing area for source files before loading into tables.
 
+Architecture
+------------
+
+Source Files
+     |
+     v
+LANDING.IPL_STAGE
+     |
+     v
+BRONZE TABLES
+
 Objects Created
 ---------------
 FILE FORMAT
@@ -23,11 +35,17 @@ FILE FORMAT
 STAGE
     IPL_STAGE
 
+Prerequisites
+-------------
+- IPL_ANALYTICS database created
+- LANDING schema created
+
 ***************************************************************************************************/
 
 USE ROLE SYSADMIN;
 
 USE DATABASE IPL_ANALYTICS;
+USE SCHEMA LANDING;
 
 ---------------------------------------------------------
 -- Create CSV File Format
@@ -35,8 +53,9 @@ USE DATABASE IPL_ANALYTICS;
 
 CREATE OR REPLACE FILE FORMAT CSV_FORMAT
 TYPE = CSV
-FIELD_OPTIONALLY_ENCLOSED_BY='"'
-SKIP_HEADER = 1;
+FIELD_OPTIONALLY_ENCLOSED_BY = '"'
+SKIP_HEADER = 1
+EMPTY_FIELD_AS_NULL = TRUE;
 
 ---------------------------------------------------------
 -- Create Internal Stage
