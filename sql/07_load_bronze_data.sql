@@ -6,22 +6,21 @@ Author         : Amit
 
 Purpose
 -------
-Load source datasets from LANDING stage into Bronze layer tables.
+Load source datasets from Landing Stage into Bronze Layer tables.
 
 What is Happening?
 ------------------
-Source files are first uploaded to:
+Source files are uploaded into:
 
 IPL_ANALYTICS.LANDING.IPL_STAGE
 
-These files are then loaded into Bronze tables using Snowflake's
-COPY INTO command.
+and loaded into Bronze tables using Snowflake's COPY INTO command.
 
 Architecture
 ------------
 
-CSV Files
----------
+Source Files
+------------
 matches.csv
 deliveries.csv
 teams.csv
@@ -45,9 +44,9 @@ Snowflake's native bulk loading utility.
 
 Benefits
 --------
-1. Fast Parallel Loading
-2. Error Handling
-3. Scalable
+1. High Performance
+2. Parallel Processing
+3. Error Handling
 4. Production Standard
 
 Metadata Columns
@@ -56,7 +55,7 @@ SOURCE_FILE_NAME
     Tracks source file.
 
 BATCH_ID
-    Identifies ingestion batch.
+    Tracks ingestion batch.
 
 LOAD_TS
     Automatically populated during load.
@@ -67,6 +66,15 @@ Prerequisites
 2. Bronze tables created
 3. CSV_FORMAT created
 
+Objects Loaded
+--------------
+MATCHES_RAW
+DELIVERIES_RAW
+TEAMS_RAW
+PLAYERS_RAW
+PLAYER_STATS_REFERENCE_RAW
+TEAM_HOME_AWAY_RAW
+
 ***************************************************************************************************/
 
 USE ROLE SYSADMIN;
@@ -74,7 +82,7 @@ USE ROLE SYSADMIN;
 USE DATABASE IPL_ANALYTICS;
 
 --------------------------------------------------------------------------------
--- Validate Files in Stage
+-- Validate Files Available in Stage
 --------------------------------------------------------------------------------
 
 LIST @IPL_ANALYTICS.LANDING.IPL_STAGE;
@@ -94,7 +102,7 @@ FROM
 SELECT
 $1,
 METADATA$FILENAME,
-TO_VARCHAR(CURRENT_TIMESTAMP())
+CURRENT_TIMESTAMP()
 FROM @IPL_ANALYTICS.LANDING.IPL_STAGE/teams.csv
 )
 FILE_FORMAT = (FORMAT_NAME = IPL_ANALYTICS.LANDING.CSV_FORMAT);
@@ -117,12 +125,12 @@ FROM
 (
 SELECT
 $1,
-TRY_TO_DATE($2),
+TRY_TO_DATE($2,'DD-MON-YY'),
 $3,
 $4,
 $5,
 METADATA$FILENAME,
-TO_VARCHAR(CURRENT_TIMESTAMP())
+CURRENT_TIMESTAMP()
 FROM @IPL_ANALYTICS.LANDING.IPL_STAGE/Players.csv
 )
 FILE_FORMAT = (FORMAT_NAME = IPL_ANALYTICS.LANDING.CSV_FORMAT);
@@ -152,7 +160,7 @@ $4,
 $5,
 $6,
 METADATA$FILENAME,
-TO_VARCHAR(CURRENT_TIMESTAMP())
+CURRENT_TIMESTAMP()
 FROM @IPL_ANALYTICS.LANDING.IPL_STAGE/most_runs_average_strikerate.csv
 )
 FILE_FORMAT = (FORMAT_NAME = IPL_ANALYTICS.LANDING.CSV_FORMAT);
@@ -184,7 +192,7 @@ $5,
 $6,
 $7,
 METADATA$FILENAME,
-TO_VARCHAR(CURRENT_TIMESTAMP())
+CURRENT_TIMESTAMP()
 FROM @IPL_ANALYTICS.LANDING.IPL_STAGE/teamwise_home_and_away.csv
 )
 FILE_FORMAT = (FORMAT_NAME = IPL_ANALYTICS.LANDING.CSV_FORMAT);
@@ -238,7 +246,7 @@ $16,
 $17,
 $18,
 METADATA$FILENAME,
-TO_VARCHAR(CURRENT_TIMESTAMP())
+CURRENT_TIMESTAMP()
 FROM @IPL_ANALYTICS.LANDING.IPL_STAGE/matches.csv
 )
 FILE_FORMAT = (FORMAT_NAME = IPL_ANALYTICS.LANDING.CSV_FORMAT);
@@ -276,17 +284,35 @@ BATCH_ID
 FROM
 (
 SELECT
-$1,$2,$3,$4,$5,$6,$7,$8,$9,
-$10,$11,$12,$13,$14,$15,
-$16,$17,$18,$19,$20,$21,
+$1,
+$2,
+$3,
+$4,
+$5,
+$6,
+$7,
+$8,
+$9,
+$10,
+$11,
+$12,
+$13,
+$14,
+$15,
+$16,
+$17,
+$18,
+$19,
+$20,
+$21,
 METADATA$FILENAME,
-TO_VARCHAR(CURRENT_TIMESTAMP())
+CURRENT_TIMESTAMP()
 FROM @IPL_ANALYTICS.LANDING.IPL_STAGE/deliveries.csv
 )
 FILE_FORMAT = (FORMAT_NAME = IPL_ANALYTICS.LANDING.CSV_FORMAT);
 
 --------------------------------------------------------------------------------
--- Validation
+-- Validation Queries
 --------------------------------------------------------------------------------
 
 SELECT 'MATCHES_RAW' TABLE_NAME, COUNT(*) RECORD_COUNT
@@ -316,3 +342,13 @@ UNION ALL
 
 SELECT 'TEAM_HOME_AWAY_RAW', COUNT(*)
 FROM IPL_ANALYTICS.BRONZE.TEAM_HOME_AWAY_RAW;
+
+--------------------------------------------------------------------------------
+-- Expected Outcome
+--------------------------------------------------------------------------------
+
+-- All Bronze tables populated successfully
+-- Source lineage captured
+-- Ready for Silver Layer transformations
+
+--------------------------------------------------------------------------------
