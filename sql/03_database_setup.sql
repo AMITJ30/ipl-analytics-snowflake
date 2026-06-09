@@ -87,19 +87,19 @@ USE ROLE SYSADMIN;
 
 ---
 
-## -- Create Database
+-- Create Database
 
 CREATE DATABASE IF NOT EXISTS IPL_ANALYTICS;
 
 ---
 
-## -- Use Database
+ -- Use Database
 
 USE DATABASE IPL_ANALYTICS;
 
 ---
 
-## -- Create Schemas
+-- Create Schemas
 
 CREATE SCHEMA IF NOT EXISTS LANDING;
 
@@ -113,6 +113,6 @@ CREATE SCHEMA IF NOT EXISTS UTIL;
 
 ---
 
-## -- Validation
+-- Validation
 
 SHOW SCHEMAS;
