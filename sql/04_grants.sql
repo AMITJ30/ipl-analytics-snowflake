@@ -10,35 +10,36 @@ Grant required permissions to project roles.
 
 Why?
 ----
-Creating roles alone does not provide access.
+Roles alone do not provide access.
 
-Roles need permissions on:
+Permissions must be granted on:
 - Warehouse
 - Database
 - Schemas
+- Future Objects
 
 Role Responsibilities
 ---------------------
 
 IPL_INGEST
 -----------
-Loads raw IPL files into Bronze layer.
+- Manage file ingestion
+- Access Landing layer
+- Load data into Bronze layer
 
 IPL_TRANSFORM
 --------------
-Transforms data from Bronze → Silver → Gold.
+- Build Silver and Gold layers
+- Create tables and transformations
 
 IPL_REPORTING
 --------------
-Read-only access to Gold layer for reporting
-and Streamlit dashboards.
+- Read-only access to Gold layer
+- Used by dashboards and analytics users
 
 Security Principle
 ------------------
 Least Privilege Access
-
-Users receive only the permissions necessary
-to perform their job responsibilities.
 
 ***************************************************************************************************/
 
@@ -77,29 +78,70 @@ ON DATABASE IPL_ANALYTICS
 TO ROLE IPL_REPORTING;
 
 ---------------------------------------------------------
--- Bronze Schema Access
+-- LANDING Schema
+---------------------------------------------------------
+
+GRANT USAGE
+ON SCHEMA IPL_ANALYTICS.LANDING
+TO ROLE IPL_INGEST;
+
+GRANT CREATE STAGE
+ON SCHEMA IPL_ANALYTICS.LANDING
+TO ROLE IPL_INGEST;
+
+GRANT CREATE FILE FORMAT
+ON SCHEMA IPL_ANALYTICS.LANDING
+TO ROLE IPL_INGEST;
+
+---------------------------------------------------------
+-- BRONZE Schema
 ---------------------------------------------------------
 
 GRANT USAGE
 ON SCHEMA IPL_ANALYTICS.BRONZE
 TO ROLE IPL_INGEST;
 
+GRANT CREATE TABLE
+ON SCHEMA IPL_ANALYTICS.BRONZE
+TO ROLE IPL_INGEST;
+
 ---------------------------------------------------------
--- Silver Schema Access
+-- SILVER Schema
 ---------------------------------------------------------
 
 GRANT USAGE
 ON SCHEMA IPL_ANALYTICS.SILVER
 TO ROLE IPL_TRANSFORM;
 
+GRANT CREATE TABLE
+ON SCHEMA IPL_ANALYTICS.SILVER
+TO ROLE IPL_TRANSFORM;
+
 ---------------------------------------------------------
--- Gold Schema Access
+-- GOLD Schema
 ---------------------------------------------------------
 
 GRANT USAGE
 ON SCHEMA IPL_ANALYTICS.GOLD
 TO ROLE IPL_TRANSFORM;
 
+GRANT CREATE TABLE
+ON SCHEMA IPL_ANALYTICS.GOLD
+TO ROLE IPL_TRANSFORM;
+
+---------------------------------------------------------
+-- Reporting Access
+---------------------------------------------------------
+
 GRANT USAGE
 ON SCHEMA IPL_ANALYTICS.GOLD
+TO ROLE IPL_REPORTING;
+
+---------------------------------------------------------
+-- Future Grants
+---------------------------------------------------------
+
+GRANT SELECT
+ON FUTURE TABLES
+IN SCHEMA IPL_ANALYTICS.GOLD
 TO ROLE IPL_REPORTING;
