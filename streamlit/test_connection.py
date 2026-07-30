@@ -19,37 +19,28 @@ try:
     st.success("✅ Connected to Snowflake successfully!")
 
     cur = conn.cursor()
-
     cur.execute("""
-        SELECT
-            CURRENT_ACCOUNT(),
-            CURRENT_USER(),
-            CURRENT_ROLE(),
-            CURRENT_WAREHOUSE(),
-            CURRENT_DATABASE(),
-            CURRENT_SCHEMA(),
-            CURRENT_VERSION()
+        SELECT CURRENT_ACCOUNT(),
+               CURRENT_USER(),
+               CURRENT_ROLE(),
+               CURRENT_WAREHOUSE(),
+               CURRENT_DATABASE(),
+               CURRENT_SCHEMA(),
+               CURRENT_VERSION()
     """)
 
     result = cur.fetchone()
 
-    st.subheader("Connection Details")
-
-    st.write(f"**Account:** {result[0]}")
-    st.write(f"**User:** {result[1]}")
-    st.write(f"**Role:** {result[2]}")
-    st.write(f"**Warehouse:** {result[3]}")
-    st.write(f"**Database:** {result[4]}")
-    st.write(f"**Schema:** {result[5]}")
-    st.write(f"**Snowflake Version:** {result[6]}")
+    st.write("**Account:**", result[0])
+    st.write("**User:**", result[1])
+    st.write("**Role:**", result[2])
+    st.write("**Warehouse:**", result[3])
+    st.write("**Database:**", result[4])
+    st.write("**Schema:**", result[5])
+    st.write("**Version:**", result[6])
 
     cur.close()
     conn.close()
 
 except Exception as e:
-    st.error("❌ Connection Failed")
-<<<<<<< HEAD
-    st.code(str(e))
-=======
-    st.code(str(e))
->>>>>>> b77533a8e12640ada1d4a41cca777daf783a8b25
+    st.error(f"❌ Connection failed:\n{e}")
