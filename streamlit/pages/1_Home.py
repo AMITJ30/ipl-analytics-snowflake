@@ -11,21 +11,41 @@ st.set_page_config(
 
 st.title("🏏 IPL Analytics Dashboard")
 
-try:
-    conn = get_connection()
+conn = get_connection()
 
-    query = """
-    SELECT *
-    FROM REPORTING.VW_DASHBOARD_SUMMARY
-    """
+df = pd.read_sql(
+    "SELECT * FROM REPORTING.VW_DASHBOARD_SUMMARY",
+    conn
+)
 
-    df = pd.read_sql(query, conn)
+summary = df.iloc[0]
 
-    st.success("Data loaded successfully!")
+col1, col2, col3, col4 = st.columns(4)
 
-    st.dataframe(df, use_container_width=True)
+with col1:
+    st.metric("🏏 Total Matches", int(summary["TOTAL_MATCHES"]))
 
-    conn.close()
+with col2:
+    st.metric("📅 Seasons", int(summary["TOTAL_SEASONS"]))
 
-except Exception as e:
-    st.error(e)
+with col3:
+    st.metric("👥 Teams", int(summary["TOTAL_TEAMS"]))
+
+with col4:
+    st.metric("🧑 Players", int(summary["TOTAL_PLAYERS"]))
+
+col5, col6, col7, col8 = st.columns(4)
+
+with col5:
+    st.metric("🏟️ Venues", int(summary["TOTAL_VENUES"]))
+
+with col6:
+    st.metric("🏏 Deliveries", f"{int(summary['TOTAL_DELIVERIES']):,}")
+
+with col7:
+    st.metric("🏃 Runs", f"{int(summary['TOTAL_RUNS']):,}")
+
+with col8:
+    st.metric("🎯 Wickets", f"{int(summary['TOTAL_WICKETS']):,}")
+
+conn.close()
