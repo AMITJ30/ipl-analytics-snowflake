@@ -4,22 +4,28 @@ import pandas as pd
 from utils.connection import get_connection
 
 st.set_page_config(
-    page_title="IPL Analytics Dashboard",
+    page_title="IPL Dashboard",
     page_icon="🏏",
     layout="wide"
 )
 
 st.title("🏏 IPL Analytics Dashboard")
 
-conn = get_connection()
+try:
+    conn = get_connection()
 
-query = """
-SELECT *
-FROM REPORTING.VW_DASHBOARD_SUMMARY;
-"""
+    query = """
+    SELECT *
+    FROM REPORTING.VW_DASHBOARD_SUMMARY
+    """
 
-df = pd.read_sql(query, conn)
+    df = pd.read_sql(query, conn)
 
-conn.close()
+    st.success("Data loaded successfully!")
 
-st.dataframe(df, use_container_width=True)
+    st.dataframe(df, use_container_width=True)
+
+    conn.close()
+
+except Exception as e:
+    st.error(e)
