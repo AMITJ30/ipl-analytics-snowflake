@@ -1,26 +1,51 @@
 import streamlit as st
 import snowflake.connector
 
+st.set_page_config(page_title="Snowflake Connection Test")
+
+st.title("❄️ Snowflake Connection Test")
+
 try:
     conn = snowflake.connector.connect(
-        account=st.secrets["snowflake"]["ACCOUNT"],
-        user=st.secrets["snowflake"]["USER"],
-        password=st.secrets["snowflake"]["PASSWORD"],
-        warehouse=st.secrets["snowflake"]["WAREHOUSE"],
-        database=st.secrets["snowflake"]["DATABASE"],
-        schema=st.secrets["snowflake"]["SCHEMA"],
-        role=st.secrets["snowflake"]["ROLE"],
+        account=st.secrets["ACCOUNT"],
+        user=st.secrets["USER"],
+        password=st.secrets["PASSWORD"],
+        warehouse=st.secrets["WAREHOUSE"],
+        database=st.secrets["DATABASE"],
+        schema=st.secrets["SCHEMA"],
+        role=st.secrets["ROLE"],
     )
 
-    print("✅ Connected successfully!")
+    st.success("✅ Connected to Snowflake successfully!")
 
-    cursor = conn.cursor()
-    cursor.execute("SELECT CURRENT_VERSION()")
-    print("Snowflake Version:", cursor.fetchone()[0])
+    cur = conn.cursor()
 
-    cursor.close()
+    cur.execute("""
+        SELECT
+            CURRENT_ACCOUNT(),
+            CURRENT_USER(),
+            CURRENT_ROLE(),
+            CURRENT_WAREHOUSE(),
+            CURRENT_DATABASE(),
+            CURRENT_SCHEMA(),
+            CURRENT_VERSION()
+    """)
+
+    result = cur.fetchone()
+
+    st.subheader("Connection Details")
+
+    st.write(f"**Account:** {result[0]}")
+    st.write(f"**User:** {result[1]}")
+    st.write(f"**Role:** {result[2]}")
+    st.write(f"**Warehouse:** {result[3]}")
+    st.write(f"**Database:** {result[4]}")
+    st.write(f"**Schema:** {result[5]}")
+    st.write(f"**Snowflake Version:** {result[6]}")
+
+    cur.close()
     conn.close()
 
 except Exception as e:
-    print("❌ Connection failed")
-    print(e)
+    st.error("❌ Connection Failed")
+    st.code(str(e))
