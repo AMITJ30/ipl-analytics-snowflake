@@ -48,4 +48,8 @@ try:
 
 except Exception as e:
     st.error("❌ Connection Failed")
+<<<<<<< HEAD
     st.code(str(e))
+=======
+    st.code(str(e))
+>>>>>>> b77533a8e12640ada1d4a41cca777daf783a8b25
