@@ -23,5 +23,3 @@ df = pd.read_sql(query, conn)
 conn.close()
 
 st.dataframe(df, use_container_width=True)
-
-st.dataframe(df, use_container_width=True)
