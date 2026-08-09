@@ -590,6 +590,140 @@ FROM GOLD.ORANGE_CAP_BY_SEASON
 WHERE SEASON = 'IPL-2008'
 ORDER BY PLAYER_RANK
 LIMIT 10;
+
+--------------------------------------------------------------------------------
+-- PURPLE_CAP_BY_SEASON
+--------------------------------------------------------------------------------
+
+CREATE OR REPLACE TABLE GOLD.PURPLE_CAP_BY_SEASON AS
+
+WITH BOWLER_STATS AS (
+
+    SELECT
+        M.SEASON,
+        D.BOWLER,
+
+        -- Wickets credited to the bowler
+        SUM(
+            CASE
+                WHEN D.IS_WICKET = TRUE
+                     AND D.DISMISSAL_KIND NOT IN (
+                         'run out',
+                         'retired hurt',
+                         'retired out',
+                         'obstructing the field'
+                     )
+                THEN 1
+                ELSE 0
+            END
+        ) AS WICKETS,
+
+        -- Deliveries
+        COUNT(*) AS BALLS_BOWLED,
+
+        -- Runs conceded
+        SUM(
+            D.TOTAL_RUNS - D.EXTRA_RUNS
+        ) AS RUNS_CONCEDED,
+
+        -- Dot balls
+        SUM(
+            CASE
+                WHEN D.IS_DOT_BALL = TRUE THEN 1
+                ELSE 0
+            END
+        ) AS DOT_BALLS
+
+    FROM SILVER.FACT_DELIVERY D
+
+    INNER JOIN SILVER.FACT_MATCH M
+        ON D.MATCH_ID = M.MATCH_ID
+
+    GROUP BY
+        M.SEASON,
+        D.BOWLER
+),
+
+CALCULATED_STATS AS (
+
+    SELECT
+        SEASON,
+        BOWLER,
+        WICKETS,
+        BALLS_BOWLED,
+        RUNS_CONCEDED,
+        DOT_BALLS,
+
+        -- Economy rate
+        ROUND(
+            RUNS_CONCEDED * 6.0 /
+            NULLIF(BALLS_BOWLED, 0),
+            2
+        ) AS ECONOMY,
+
+        -- Bowling strike rate
+        ROUND(
+            BALLS_BOWLED * 1.0 /
+            NULLIF(WICKETS, 0),
+            2
+        ) AS BOWLING_STRIKE_RATE,
+
+        -- Bowling average
+        ROUND(
+            RUNS_CONCEDED * 1.0 /
+            NULLIF(WICKETS, 0),
+            2
+        ) AS BOWLING_AVERAGE
+
+    FROM BOWLER_STATS
+),
+
+RANKED_BOWLERS AS (
+
+    SELECT
+        SEASON,
+
+        ROW_NUMBER() OVER (
+            PARTITION BY SEASON
+            ORDER BY
+                WICKETS DESC,
+                ECONOMY ASC
+        ) AS PLAYER_RANK,
+
+        BOWLER,
+        WICKETS,
+        BALLS_BOWLED,
+        RUNS_CONCEDED,
+        DOT_BALLS,
+        ECONOMY,
+        BOWLING_STRIKE_RATE,
+        BOWLING_AVERAGE
+
+    FROM CALCULATED_STATS
+)
+
+SELECT
+    SEASON,
+    PLAYER_RANK,
+    BOWLER,
+    WICKETS,
+    BALLS_BOWLED,
+    RUNS_CONCEDED,
+    DOT_BALLS,
+    ECONOMY,
+    BOWLING_STRIKE_RATE,
+    BOWLING_AVERAGE
+
+FROM RANKED_BOWLERS;
+
+--------------------------------------------------------------------------------
+-- VALIDATION
+--------------------------------------------------------------------------------
+SELECT *
+FROM GOLD.PURPLE_CAP_BY_SEASON
+WHERE SEASON = 'IPL-2008'
+ORDER BY PLAYER_RANK
+LIMIT 10;
 --------------------------------------------------------------------------------
 -- DASHBOARD SUMMARY
 --------------------------------------------------------------------------------
