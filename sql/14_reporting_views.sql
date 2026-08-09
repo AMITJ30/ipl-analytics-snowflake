@@ -76,6 +76,22 @@ SELECT *
 FROM GOLD.TEAM_HEAD_TO_HEAD;
 
 --------------------------------------------------------------------------------
+-- VW_ORANGE_CAP_BY_SEASON
+--------------------------------------------------------------------------------
+CREATE OR REPLACE VIEW IPL_ANALYTICS.REPORTING.VW_ORANGE_CAP_BY_SEASON AS
+SELECT
+    SEASON,
+    PLAYER_RANK,
+    BATSMAN,
+    TOTAL_RUNS,
+    BALLS_FACED,
+    FOURS,
+    SIXES,
+    STRIKE_RATE,
+    BATTING_AVERAGE
+FROM IPL_ANALYTICS.GOLD.ORANGE_CAP_BY_SEASON;
+
+--------------------------------------------------------------------------------
 -- DASHBOARD SUMMARY
 --------------------------------------------------------------------------------
 
