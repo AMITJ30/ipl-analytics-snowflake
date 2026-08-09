@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 
 from utils.connection import get_connection
+from utils.filters import show_sidebar_filters
 
 
 # -----------------------------------------------------------------------------
@@ -17,14 +18,26 @@ st.set_page_config(
 
 
 # -----------------------------------------------------------------------------
+# Sidebar Filter
+# -----------------------------------------------------------------------------
+
+selected_season = show_sidebar_filters()
+
+
+# -----------------------------------------------------------------------------
 # Page Header
 # -----------------------------------------------------------------------------
 
 st.title("📈 Season Analysis")
 
-st.markdown(
-    "Explore how IPL seasons have evolved across matches, runs, wickets and venues."
-)
+if selected_season == "All Seasons":
+    st.markdown(
+        "Explore IPL performance across all seasons."
+    )
+else:
+    st.markdown(
+        f"Explore IPL performance for **{selected_season}**."
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -32,27 +45,71 @@ st.markdown(
 # -----------------------------------------------------------------------------
 
 @st.cache_data
-def load_season_data():
+def load_season_data(season):
 
     conn = get_connection()
 
-    query = """
-        SELECT
-            SEASON,
-            TOTAL_MATCHES,
-            TOTAL_RUNS,
-            TOTAL_WICKETS,
-            AVERAGE_RUNS_PER_MATCH,
-            HIGHEST_MATCH_SCORE,
-            LOWEST_MATCH_SCORE,
-            TOTAL_VENUES,
-            TEAM_OCCURRENCES,
-            UNIQUE_WINNERS
-        FROM REPORTING.VW_SEASON_SUMMARY
-        ORDER BY SEASON
-    """
+    if season == "All Seasons":
 
-    df = pd.read_sql(query, conn)
+        query = """
+            SELECT
+                SEASON,
+                TOTAL_MATCHES,
+                TOTAL_RUNS,
+                TOTAL_WICKETS,
+                AVERAGE_RUNS_PER_MATCH,
+                HIGHEST_MATCH_SCORE,
+                LOWEST_MATCH_SCORE,
+                TOTAL_VENUES,
+                TEAM_OCCURRENCES,
+                UNIQUE_WINNERS
+            FROM REPORTING.VW_SEASON_SUMMARY
+            ORDER BY SEASON
+        """
+
+        df = pd.read_sql(query, conn)
+
+    else:
+
+        query = """
+            SELECT
+                SEASON,
+                TOTAL_MATCHES,
+                TOTAL_RUNS,
+                TOTAL_WICKETS,
+                AVERAGE_RUNS_PER_MATCH,
+                HIGHEST_MATCH_SCORE,
+                LOWEST_MATCH_SCORE,
+                TOTAL_VENUES,
+                TEAM_OCCURRENCES,
+                UNIQUE_WINNERS
+            FROM REPORTING.VW_SEASON_SUMMARY
+            WHERE SEASON = %s
+            ORDER BY SEASON
+        """
+
+        cursor = conn.cursor()
+
+        cursor.execute(query, (season,))
+
+        rows = cursor.fetchall()
+
+        columns = [
+            "SEASON",
+            "TOTAL_MATCHES",
+            "TOTAL_RUNS",
+            "TOTAL_WICKETS",
+            "AVERAGE_RUNS_PER_MATCH",
+            "HIGHEST_MATCH_SCORE",
+            "LOWEST_MATCH_SCORE",
+            "TOTAL_VENUES",
+            "TEAM_OCCURRENCES",
+            "UNIQUE_WINNERS"
+        ]
+
+        df = pd.DataFrame(rows, columns=columns)
+
+        cursor.close()
 
     conn.close()
 
@@ -65,11 +122,11 @@ def load_season_data():
 
 try:
 
-    df = load_season_data()
+    df = load_season_data(selected_season)
 
     if df.empty:
 
-        st.warning("No season data available.")
+        st.warning("No data available for the selected season.")
 
     else:
 
@@ -77,19 +134,21 @@ try:
         # KPI Calculations
         # ---------------------------------------------------------------------
 
-        total_seasons = len(df)
+        total_matches = int(
+            df["TOTAL_MATCHES"].sum()
+        )
 
-        highest_scoring_season = df.loc[
-            df["TOTAL_RUNS"].idxmax(),
-            "SEASON"
-        ]
+        total_runs = int(
+            df["TOTAL_RUNS"].sum()
+        )
 
-        highest_match_score = df["HIGHEST_MATCH_SCORE"].max()
+        total_wickets = int(
+            df["TOTAL_WICKETS"].sum()
+        )
 
-        most_matches_season = df.loc[
-            df["TOTAL_MATCHES"].idxmax(),
-            "SEASON"
-        ]
+        highest_score = int(
+            df["HIGHEST_MATCH_SCORE"].max()
+        )
 
         # ---------------------------------------------------------------------
         # KPI Cards
@@ -99,153 +158,198 @@ try:
 
         with col1:
             st.metric(
-                "📅 Seasons",
-                total_seasons
+                "🏏 Total Matches",
+                f"{total_matches:,}"
             )
 
         with col2:
             st.metric(
-                "🏏 Highest Run-Scoring Season",
-                highest_scoring_season
+                "🏃 Total Runs",
+                f"{total_runs:,}"
             )
 
         with col3:
             st.metric(
-                "🔥 Highest Match Score",
-                f"{int(highest_match_score):,}"
+                "🎯 Total Wickets",
+                f"{total_wickets:,}"
             )
 
         with col4:
             st.metric(
-                "🏆 Most Matches Season",
-                most_matches_season
+                "🔥 Highest Match Score",
+                f"{highest_score:,}"
             )
 
         st.divider()
 
         # ---------------------------------------------------------------------
-        # Matches by Season
+        # All Seasons Charts
         # ---------------------------------------------------------------------
 
-        st.subheader("🏏 Matches Played by Season")
+        if selected_season == "All Seasons":
 
-        fig_matches = px.bar(
-            df,
-            x="SEASON",
-            y="TOTAL_MATCHES",
-            text="TOTAL_MATCHES",
-            title="IPL Matches by Season"
-        )
+            # -------------------------------------------------------------
+            # Matches by Season
+            # -------------------------------------------------------------
 
-        fig_matches.update_traces(
-            textposition="outside"
-        )
+            st.subheader("🏏 Matches Played by Season")
 
-        fig_matches.update_layout(
-            xaxis_title="Season",
-            yaxis_title="Matches",
-            showlegend=False
-        )
+            fig_matches = px.bar(
+                df,
+                x="SEASON",
+                y="TOTAL_MATCHES",
+                text="TOTAL_MATCHES",
+                title="IPL Matches by Season"
+            )
 
-        st.plotly_chart(
-            fig_matches,
-            use_container_width=True
-        )
+            fig_matches.update_traces(
+                textposition="outside"
+            )
 
-        # ---------------------------------------------------------------------
-        # Runs and Wickets Trend
-        # ---------------------------------------------------------------------
+            fig_matches.update_layout(
+                xaxis_title="Season",
+                yaxis_title="Matches",
+                showlegend=False
+            )
 
-        st.subheader("📊 Runs and Wickets by Season")
+            st.plotly_chart(
+                fig_matches,
+                use_container_width=True
+            )
 
-        trend_df = df[
-            [
-                "SEASON",
-                "TOTAL_RUNS",
-                "TOTAL_WICKETS"
-            ]
-        ].copy()
+            # -------------------------------------------------------------
+            # Runs and Wickets Trend
+            # -------------------------------------------------------------
 
-        trend_df = trend_df.melt(
-            id_vars="SEASON",
-            var_name="Metric",
-            value_name="Value"
-        )
+            st.subheader("📊 Runs and Wickets by Season")
 
-        fig_trend = px.line(
-            trend_df,
-            x="SEASON",
-            y="Value",
-            color="Metric",
-            markers=True,
-            title="Runs and Wickets Trend"
-        )
+            trend_df = df[
+                [
+                    "SEASON",
+                    "TOTAL_RUNS",
+                    "TOTAL_WICKETS"
+                ]
+            ].melt(
+                id_vars="SEASON",
+                var_name="Metric",
+                value_name="Value"
+            )
 
-        fig_trend.update_layout(
-            xaxis_title="Season",
-            yaxis_title="Count"
-        )
+            fig_trend = px.line(
+                trend_df,
+                x="SEASON",
+                y="Value",
+                color="Metric",
+                markers=True,
+                title="Runs and Wickets Trend"
+            )
 
-        st.plotly_chart(
-            fig_trend,
-            use_container_width=True
-        )
+            fig_trend.update_layout(
+                xaxis_title="Season",
+                yaxis_title="Count"
+            )
 
-        # ---------------------------------------------------------------------
-        # Average Runs per Match
-        # ---------------------------------------------------------------------
+            st.plotly_chart(
+                fig_trend,
+                use_container_width=True
+            )
 
-        st.subheader("🏏 Average Runs per Match")
+            # -------------------------------------------------------------
+            # Average Runs
+            # -------------------------------------------------------------
 
-        fig_average = px.line(
-            df,
-            x="SEASON",
-            y="AVERAGE_RUNS_PER_MATCH",
-            markers=True,
-            title="Average Runs per Match by Season"
-        )
+            st.subheader("🏏 Average Runs per Match")
 
-        fig_average.update_layout(
-            xaxis_title="Season",
-            yaxis_title="Average Runs"
-        )
+            fig_average = px.line(
+                df,
+                x="SEASON",
+                y="AVERAGE_RUNS_PER_MATCH",
+                markers=True,
+                title="Average Runs per Match"
+            )
 
-        st.plotly_chart(
-            fig_average,
-            use_container_width=True
-        )
+            fig_average.update_layout(
+                xaxis_title="Season",
+                yaxis_title="Average Runs"
+            )
 
-        # ---------------------------------------------------------------------
-        # Highest Match Score
-        # ---------------------------------------------------------------------
-
-        st.subheader("🔥 Highest Match Score by Season")
-
-        fig_highest = px.bar(
-            df,
-            x="SEASON",
-            y="HIGHEST_MATCH_SCORE",
-            text="HIGHEST_MATCH_SCORE",
-            title="Highest Match Score by Season"
-        )
-
-        fig_highest.update_traces(
-            textposition="outside"
-        )
-
-        fig_highest.update_layout(
-            xaxis_title="Season",
-            yaxis_title="Highest Match Score",
-            showlegend=False
-        )
-
-        st.plotly_chart(
-            fig_highest,
-            use_container_width=True
-        )
+            st.plotly_chart(
+                fig_average,
+                use_container_width=True
+            )
 
         # ---------------------------------------------------------------------
-        # Detailed Table
+        # Selected Season
+        # ---------------------------------------------------------------------
+
+        else:
+
+            row = df.iloc[0]
+
+            st.subheader(
+                f"📊 {selected_season} Overview"
+            )
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.metric(
+                    "🏟️ Venues",
+                    int(row["TOTAL_VENUES"])
+                )
+
+            with col2:
+                st.metric(
+                    "👥 Team Occurrences",
+                    int(row["TEAM_OCCURRENCES"])
+                )
+
+            with col3:
+                st.metric(
+                    "🏆 Unique Winners",
+                    int(row["UNIQUE_WINNERS"])
+                )
+
+            # -------------------------------------------------------------
+            # Season Score Range
+            # -------------------------------------------------------------
+
+            score_df = pd.DataFrame({
+                "Metric": [
+                    "Highest Match Score",
+                    "Lowest Match Score"
+                ],
+                "Score": [
+                    int(row["HIGHEST_MATCH_SCORE"]),
+                    int(row["LOWEST_MATCH_SCORE"])
+                ]
+            })
+
+            st.subheader("🔥 Match Score Range")
+
+            fig_score = px.bar(
+                score_df,
+                x="Metric",
+                y="Score",
+                text="Score",
+                title=f"{selected_season} Match Score Range"
+            )
+
+            fig_score.update_traces(
+                textposition="outside"
+            )
+
+            fig_score.update_layout(
+                showlegend=False
+            )
+
+            st.plotly_chart(
+                fig_score,
+                use_container_width=True
+            )
+
+        # ---------------------------------------------------------------------
+        # Season Statistics Table
         # ---------------------------------------------------------------------
 
         st.subheader("📋 Season Statistics")
