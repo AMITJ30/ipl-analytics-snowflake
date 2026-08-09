@@ -59,10 +59,6 @@ def show_sidebar_filters():
 
     st.sidebar.header("🔎 Filters")
 
-    # -------------------------------------------------------------------------
-    # Season
-    # -------------------------------------------------------------------------
-
     seasons = get_seasons()
 
     selected_season = st.sidebar.selectbox(
@@ -70,10 +66,6 @@ def show_sidebar_filters():
         ["All Seasons"] + seasons,
         key="global_season"
     )
-
-    # -------------------------------------------------------------------------
-    # Team
-    # -------------------------------------------------------------------------
 
     teams = get_teams()
 
