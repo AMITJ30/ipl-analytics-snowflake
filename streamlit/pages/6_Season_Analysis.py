@@ -21,7 +21,7 @@ st.set_page_config(
 # Sidebar Filter
 # -----------------------------------------------------------------------------
 
-selected_season = show_sidebar_filters()
+selected_season, selected_team = show_sidebar_filters()
 
 
 # -----------------------------------------------------------------------------
@@ -63,34 +63,13 @@ def load_season_data(season):
                 TOTAL_VENUES,
                 TEAM_OCCURRENCES,
                 UNIQUE_WINNERS
-            FROM REPORTING.VW_SEASON_SUMMARY
-            ORDER BY SEASON
-        """
-
-        df = pd.read_sql(query, conn)
-
-    else:
-
-        query = """
-            SELECT
-                SEASON,
-                TOTAL_MATCHES,
-                TOTAL_RUNS,
-                TOTAL_WICKETS,
-                AVERAGE_RUNS_PER_MATCH,
-                HIGHEST_MATCH_SCORE,
-                LOWEST_MATCH_SCORE,
-                TOTAL_VENUES,
-                TEAM_OCCURRENCES,
-                UNIQUE_WINNERS
-            FROM REPORTING.VW_SEASON_SUMMARY
-            WHERE SEASON = %s
+            FROM IPL_ANALYTICS.REPORTING.VW_SEASON_SUMMARY
             ORDER BY SEASON
         """
 
         cursor = conn.cursor()
 
-        cursor.execute(query, (season,))
+        cursor.execute(query)
 
         rows = cursor.fetchall()
 
@@ -107,7 +86,58 @@ def load_season_data(season):
             "UNIQUE_WINNERS"
         ]
 
-        df = pd.DataFrame(rows, columns=columns)
+        df = pd.DataFrame(
+            rows,
+            columns=columns
+        )
+
+        cursor.close()
+
+    else:
+
+        query = """
+            SELECT
+                SEASON,
+                TOTAL_MATCHES,
+                TOTAL_RUNS,
+                TOTAL_WICKETS,
+                AVERAGE_RUNS_PER_MATCH,
+                HIGHEST_MATCH_SCORE,
+                LOWEST_MATCH_SCORE,
+                TOTAL_VENUES,
+                TEAM_OCCURRENCES,
+                UNIQUE_WINNERS
+            FROM IPL_ANALYTICS.REPORTING.VW_SEASON_SUMMARY
+            WHERE SEASON = %s
+            ORDER BY SEASON
+        """
+
+        cursor = conn.cursor()
+
+        cursor.execute(
+            query,
+            (season,)
+        )
+
+        rows = cursor.fetchall()
+
+        columns = [
+            "SEASON",
+            "TOTAL_MATCHES",
+            "TOTAL_RUNS",
+            "TOTAL_WICKETS",
+            "AVERAGE_RUNS_PER_MATCH",
+            "HIGHEST_MATCH_SCORE",
+            "LOWEST_MATCH_SCORE",
+            "TOTAL_VENUES",
+            "TEAM_OCCURRENCES",
+            "UNIQUE_WINNERS"
+        ]
+
+        df = pd.DataFrame(
+            rows,
+            columns=columns
+        )
 
         cursor.close()
 
@@ -126,13 +156,38 @@ try:
 
     if df.empty:
 
-        st.warning("No data available for the selected season.")
+        st.warning(
+            "No data available for the selected season."
+        )
 
     else:
 
         # ---------------------------------------------------------------------
-        # KPI Calculations
+        # Numeric Conversion
         # ---------------------------------------------------------------------
+
+        numeric_columns = [
+            "TOTAL_MATCHES",
+            "TOTAL_RUNS",
+            "TOTAL_WICKETS",
+            "AVERAGE_RUNS_PER_MATCH",
+            "HIGHEST_MATCH_SCORE",
+            "LOWEST_MATCH_SCORE",
+            "TOTAL_VENUES",
+            "TEAM_OCCURRENCES",
+            "UNIQUE_WINNERS"
+        ]
+
+        for column in numeric_columns:
+
+            df[column] = pd.to_numeric(
+                df[column],
+                errors="coerce"
+            )
+
+        # =====================================================================
+        # KPI CALCULATIONS
+        # =====================================================================
 
         total_matches = int(
             df["TOTAL_MATCHES"].sum()
@@ -157,24 +212,28 @@ try:
         col1, col2, col3, col4 = st.columns(4)
 
         with col1:
+
             st.metric(
                 "🏏 Total Matches",
                 f"{total_matches:,}"
             )
 
         with col2:
+
             st.metric(
                 "🏃 Total Runs",
                 f"{total_runs:,}"
             )
 
         with col3:
+
             st.metric(
                 "🎯 Total Wickets",
                 f"{total_wickets:,}"
             )
 
         with col4:
+
             st.metric(
                 "🔥 Highest Match Score",
                 f"{highest_score:,}"
@@ -182,17 +241,19 @@ try:
 
         st.divider()
 
-        # ---------------------------------------------------------------------
-        # All Seasons Charts
-        # ---------------------------------------------------------------------
+        # =====================================================================
+        # ALL SEASONS
+        # =====================================================================
 
         if selected_season == "All Seasons":
 
-            # -------------------------------------------------------------
+            # -----------------------------------------------------------------
             # Matches by Season
-            # -------------------------------------------------------------
+            # -----------------------------------------------------------------
 
-            st.subheader("🏏 Matches Played by Season")
+            st.subheader(
+                "🏏 Matches Played by Season"
+            )
 
             fig_matches = px.bar(
                 df,
@@ -217,11 +278,13 @@ try:
                 use_container_width=True
             )
 
-            # -------------------------------------------------------------
+            # -----------------------------------------------------------------
             # Runs and Wickets Trend
-            # -------------------------------------------------------------
+            # -----------------------------------------------------------------
 
-            st.subheader("📊 Runs and Wickets by Season")
+            st.subheader(
+                "📊 Runs and Wickets by Season"
+            )
 
             trend_df = df[
                 [
@@ -254,11 +317,13 @@ try:
                 use_container_width=True
             )
 
-            # -------------------------------------------------------------
+            # -----------------------------------------------------------------
             # Average Runs
-            # -------------------------------------------------------------
+            # -----------------------------------------------------------------
 
-            st.subheader("🏏 Average Runs per Match")
+            st.subheader(
+                "🏏 Average Runs per Match"
+            )
 
             fig_average = px.line(
                 df,
@@ -278,9 +343,9 @@ try:
                 use_container_width=True
             )
 
-        # ---------------------------------------------------------------------
-        # Selected Season
-        # ---------------------------------------------------------------------
+        # =====================================================================
+        # SELECTED SEASON
+        # =====================================================================
 
         else:
 
@@ -293,39 +358,46 @@ try:
             col1, col2, col3 = st.columns(3)
 
             with col1:
+
                 st.metric(
                     "🏟️ Venues",
                     int(row["TOTAL_VENUES"])
                 )
 
             with col2:
+
                 st.metric(
                     "👥 Team Occurrences",
                     int(row["TEAM_OCCURRENCES"])
                 )
 
             with col3:
+
                 st.metric(
                     "🏆 Unique Winners",
                     int(row["UNIQUE_WINNERS"])
                 )
 
-            # -------------------------------------------------------------
+            # -----------------------------------------------------------------
             # Season Score Range
-            # -------------------------------------------------------------
+            # -----------------------------------------------------------------
 
-            score_df = pd.DataFrame({
-                "Metric": [
-                    "Highest Match Score",
-                    "Lowest Match Score"
-                ],
-                "Score": [
-                    int(row["HIGHEST_MATCH_SCORE"]),
-                    int(row["LOWEST_MATCH_SCORE"])
-                ]
-            })
+            score_df = pd.DataFrame(
+                {
+                    "Metric": [
+                        "Highest Match Score",
+                        "Lowest Match Score"
+                    ],
+                    "Score": [
+                        int(row["HIGHEST_MATCH_SCORE"]),
+                        int(row["LOWEST_MATCH_SCORE"])
+                    ]
+                }
+            )
 
-            st.subheader("🔥 Match Score Range")
+            st.subheader(
+                "🔥 Match Score Range"
+            )
 
             fig_score = px.bar(
                 score_df,
@@ -348,11 +420,13 @@ try:
                 use_container_width=True
             )
 
-        # ---------------------------------------------------------------------
-        # Season Statistics Table
-        # ---------------------------------------------------------------------
+        # =====================================================================
+        # SEASON STATISTICS TABLE
+        # =====================================================================
 
-        st.subheader("📋 Season Statistics")
+        st.subheader(
+            "📋 Season Statistics"
+        )
 
         display_df = df.copy()
 
@@ -372,7 +446,8 @@ try:
         )
 
         display_df["Average Runs / Match"] = (
-            display_df["Average Runs / Match"].round(2)
+            display_df["Average Runs / Match"]
+            .round(2)
         )
 
         st.dataframe(
@@ -382,8 +457,16 @@ try:
         )
 
 
+# -----------------------------------------------------------------------------
+# Error Handling
+# -----------------------------------------------------------------------------
+
 except Exception as e:
 
-    st.error("❌ Unable to load season analytics.")
+    st.error(
+        "❌ Unable to load season analytics."
+    )
 
-    st.code(str(e))
+    st.code(
+        str(e)
+    )
