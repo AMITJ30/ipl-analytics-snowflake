@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 
 from utils.connection import get_connection
+from utils.filters import show_sidebar_filters
 
 
 # -----------------------------------------------------------------------------
@@ -17,14 +18,26 @@ st.set_page_config(
 
 
 # -----------------------------------------------------------------------------
+# Global Filters
+# -----------------------------------------------------------------------------
+
+selected_season, selected_team = show_sidebar_filters()
+
+
+# -----------------------------------------------------------------------------
 # Page Header
 # -----------------------------------------------------------------------------
 
 st.title("🎯 Purple Cap")
 
-st.markdown(
-    "Explore the leading IPL wicket-takers and their bowling performance."
-)
+if selected_season == "All Seasons":
+    st.markdown(
+        "Explore the leading IPL wicket takers across all seasons."
+    )
+else:
+    st.markdown(
+        f"Explore the leading wicket takers for **{selected_season}**."
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -32,12 +45,13 @@ st.markdown(
 # -----------------------------------------------------------------------------
 
 @st.cache_data
-def load_purple_cap():
+def load_purple_cap(season):
 
     conn = get_connection()
 
     query = """
         SELECT
+            SEASON,
             PLAYER_RANK,
             BOWLER,
             WICKETS,
@@ -47,12 +61,48 @@ def load_purple_cap():
             ECONOMY,
             BOWLING_STRIKE_RATE,
             BOWLING_AVERAGE
-        FROM REPORTING.VW_PURPLE_CAP
-        ORDER BY PLAYER_RANK
+        FROM IPL_ANALYTICS.REPORTING.VW_PURPLE_CAP_BY_SEASON
     """
 
-    df = pd.read_sql(query, conn)
+    params = ()
 
+    if season != "All Seasons":
+
+        query += """
+            WHERE SEASON = %s
+        """
+
+        params = (season,)
+
+    query += """
+        ORDER BY SEASON, PLAYER_RANK
+    """
+
+    cursor = conn.cursor()
+
+    cursor.execute(query, params)
+
+    rows = cursor.fetchall()
+
+    columns = [
+        "SEASON",
+        "PLAYER_RANK",
+        "BOWLER",
+        "WICKETS",
+        "BALLS_BOWLED",
+        "RUNS_CONCEDED",
+        "DOT_BALLS",
+        "ECONOMY",
+        "BOWLING_STRIKE_RATE",
+        "BOWLING_AVERAGE"
+    ]
+
+    df = pd.DataFrame(
+        rows,
+        columns=columns
+    )
+
+    cursor.close()
     conn.close()
 
     return df
@@ -64,7 +114,7 @@ def load_purple_cap():
 
 try:
 
-    df = load_purple_cap()
+    df = load_purple_cap(selected_season)
 
     if df.empty:
 
@@ -73,117 +123,251 @@ try:
     else:
 
         # ---------------------------------------------------------------------
-        # Top Bowler
+        # Convert numeric columns
         # ---------------------------------------------------------------------
 
-        top_bowler = df.iloc[0]
+        numeric_columns = [
+            "PLAYER_RANK",
+            "WICKETS",
+            "BALLS_BOWLED",
+            "RUNS_CONCEDED",
+            "DOT_BALLS",
+            "ECONOMY",
+            "BOWLING_STRIKE_RATE",
+            "BOWLING_AVERAGE"
+        ]
 
-        # ---------------------------------------------------------------------
-        # KPI Cards
-        # ---------------------------------------------------------------------
+        for column in numeric_columns:
 
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
-            st.metric(
-                "🏆 Top Wicket Taker",
-                top_bowler["BOWLER"]
+            df[column] = pd.to_numeric(
+                df[column],
+                errors="coerce"
             )
 
-        with col2:
-            st.metric(
-                "🎯 Wickets",
-                f"{int(top_bowler['WICKETS']):,}"
+        # =====================================================================
+        # SPECIFIC SEASON
+        # =====================================================================
+
+        if selected_season != "All Seasons":
+
+            df = df.sort_values(
+                "PLAYER_RANK"
             )
 
-        with col3:
-            st.metric(
-                "📉 Economy",
-                f"{float(top_bowler['ECONOMY']):.2f}"
+            top_bowler = df.iloc[0]
+
+            # -----------------------------------------------------------------
+            # KPI Cards
+            # -----------------------------------------------------------------
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+
+                st.metric(
+                    "🏆 Top Wicket Taker",
+                    top_bowler["BOWLER"]
+                )
+
+            with col2:
+
+                st.metric(
+                    "🎯 Wickets",
+                    int(top_bowler["WICKETS"])
+                )
+
+            with col3:
+
+                economy = top_bowler["ECONOMY"]
+
+                if pd.isna(economy):
+                    economy_text = "N/A"
+                else:
+                    economy_text = f"{economy:.2f}"
+
+                st.metric(
+                    "⚡ Economy",
+                    economy_text
+                )
+
+            with col4:
+
+                bowling_average = top_bowler["BOWLING_AVERAGE"]
+
+                if pd.isna(bowling_average):
+                    average_text = "N/A"
+                else:
+                    average_text = f"{bowling_average:.2f}"
+
+                st.metric(
+                    "📊 Bowling Average",
+                    average_text
+                )
+
+            st.divider()
+
+            # -----------------------------------------------------------------
+            # Top 10 Wicket Takers
+            # -----------------------------------------------------------------
+
+            st.subheader(
+                f"🏆 Top 10 Wicket Takers — {selected_season}"
             )
 
-        with col4:
-            st.metric(
-                "⚡ Bowling Strike Rate",
-                f"{float(top_bowler['BOWLING_STRIKE_RATE']):.2f}"
+            top_10 = (
+                df
+                .sort_values("PLAYER_RANK")
+                .head(10)
+                .sort_values("WICKETS")
             )
 
-        st.divider()
+            fig = px.bar(
+                top_10,
+                x="WICKETS",
+                y="BOWLER",
+                orientation="h",
+                text="WICKETS",
+                title=f"Top 10 Wicket Takers — {selected_season}"
+            )
 
-        # ---------------------------------------------------------------------
-        # Top 10 Wicket Takers
-        # ---------------------------------------------------------------------
+            fig.update_traces(
+                textposition="outside"
+            )
 
-        st.subheader("🏆 Top 10 Wicket Takers")
+            fig.update_layout(
+                xaxis_title="Wickets",
+                yaxis_title="Bowler",
+                showlegend=False
+            )
 
-        top_10 = df.head(10)
+            st.plotly_chart(
+                fig,
+                use_container_width=True
+            )
 
-        fig = px.bar(
-            top_10.sort_values("WICKETS"),
-            x="WICKETS",
-            y="BOWLER",
-            orientation="h",
-            text="WICKETS",
-            title="Top 10 IPL Wicket Takers"
+            # -----------------------------------------------------------------
+            # Economy vs Wickets
+            # -----------------------------------------------------------------
+
+            st.subheader(
+                "⚡ Economy vs Wickets"
+            )
+
+            scatter_df = df.head(50).copy()
+
+            scatter_df = scatter_df.dropna(
+                subset=[
+                    "WICKETS",
+                    "ECONOMY"
+                ]
+            )
+
+            fig_scatter = px.scatter(
+                scatter_df,
+                x="WICKETS",
+                y="ECONOMY",
+                size="DOT_BALLS",
+                hover_name="BOWLER",
+                hover_data=[
+                    "BALLS_BOWLED",
+                    "RUNS_CONCEDED",
+                    "BOWLING_STRIKE_RATE",
+                    "BOWLING_AVERAGE"
+                ],
+                title=f"Wickets vs Economy — {selected_season}"
+            )
+
+            st.plotly_chart(
+                fig_scatter,
+                use_container_width=True
+            )
+
+        # =====================================================================
+        # ALL SEASONS
+        # =====================================================================
+
+        else:
+
+            st.subheader(
+                "🏆 Season-wise Purple Cap Leaders"
+            )
+
+            leaders = (
+                df[
+                    df["PLAYER_RANK"] == 1
+                ]
+                .sort_values("SEASON")
+                .copy()
+            )
+
+            season_order = [
+                "IPL-2008",
+                "IPL-2009",
+                "IPL-2010",
+                "IPL-2011",
+                "IPL-2012",
+                "IPL-2013",
+                "IPL-2014",
+                "IPL-2015",
+                "IPL-2016",
+                "IPL-2017",
+                "IPL-2018",
+                "IPL-2019"
+            ]
+
+            leaders["SEASON"] = pd.Categorical(
+                leaders["SEASON"],
+                categories=season_order,
+                ordered=True
+            )
+
+            leaders = leaders.sort_values(
+                "SEASON"
+            )
+
+            fig = px.bar(
+                leaders,
+                x="SEASON",
+                y="WICKETS",
+                text="WICKETS",
+                hover_name="BOWLER",
+                title="Purple Cap Leader by Season"
+            )
+
+            fig.update_traces(
+                textposition="outside"
+            )
+
+            fig.update_layout(
+                xaxis_title="Season",
+                yaxis_title="Wickets",
+                showlegend=False
+            )
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True
+            )
+
+        # =====================================================================
+        # LEADERBOARD
+        # =====================================================================
+
+        st.subheader(
+            "📊 Purple Cap Leaderboard"
         )
 
-        fig.update_traces(
-            textposition="outside"
+        # Only top 10
+        display_df = (
+            df
+            .sort_values("PLAYER_RANK")
+            .head(10)
+            .copy()
         )
-
-        fig.update_layout(
-            xaxis_title="Wickets",
-            yaxis_title="Bowler",
-            showlegend=False
-        )
-
-        st.plotly_chart(
-            fig,
-            use_container_width=True
-        )
-
-        # ---------------------------------------------------------------------
-        # Economy vs Wickets
-        # ---------------------------------------------------------------------
-
-        st.subheader("📊 Economy vs Wickets")
-
-        fig_scatter = px.scatter(
-            df.head(50),
-            x="WICKETS",
-            y="ECONOMY",
-            size="DOT_BALLS",
-            hover_name="BOWLER",
-            hover_data=[
-                "BALLS_BOWLED",
-                "RUNS_CONCEDED",
-                "DOT_BALLS",
-                "BOWLING_STRIKE_RATE",
-                "BOWLING_AVERAGE"
-            ],
-            title="Wickets vs Economy — Top 50 Bowlers"
-        )
-
-        fig_scatter.update_layout(
-            xaxis_title="Wickets",
-            yaxis_title="Economy Rate"
-        )
-
-        st.plotly_chart(
-            fig_scatter,
-            use_container_width=True
-        )
-
-        # ---------------------------------------------------------------------
-        # Detailed Table
-        # ---------------------------------------------------------------------
-
-        st.subheader("📊 Purple Cap Leaderboard")
-
-        display_df = df.copy()
 
         display_df = display_df.rename(
             columns={
+                "SEASON": "Season",
                 "PLAYER_RANK": "Rank",
                 "BOWLER": "Bowler",
                 "WICKETS": "Wickets",
@@ -197,15 +381,28 @@ try:
         )
 
         display_df["Economy"] = (
-            display_df["Economy"].round(2)
+            display_df["Economy"]
+            .round(2)
         )
 
         display_df["Bowling Strike Rate"] = (
-            display_df["Bowling Strike Rate"].round(2)
+            display_df["Bowling Strike Rate"]
+            .round(2)
         )
 
         display_df["Bowling Average"] = (
-            display_df["Bowling Average"].round(2)
+            display_df["Bowling Average"]
+            .round(2)
+        )
+
+        display_df["Bowling Strike Rate"] = (
+            display_df["Bowling Strike Rate"]
+            .fillna("N/A")
+        )
+
+        display_df["Bowling Average"] = (
+            display_df["Bowling Average"]
+            .fillna("N/A")
         )
 
         st.dataframe(
@@ -215,8 +412,16 @@ try:
         )
 
 
+# -----------------------------------------------------------------------------
+# Error Handling
+# -----------------------------------------------------------------------------
+
 except Exception as e:
 
-    st.error("❌ Unable to load Purple Cap data.")
+    st.error(
+        "❌ Unable to load Purple Cap data."
+    )
 
-    st.code(str(e))
+    st.code(
+        str(e)
+    )
