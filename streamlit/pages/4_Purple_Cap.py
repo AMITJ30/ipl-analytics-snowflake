@@ -118,12 +118,14 @@ try:
 
     if df.empty:
 
-        st.warning("No Purple Cap data available.")
+        st.warning(
+            "No Purple Cap data available."
+        )
 
     else:
 
         # ---------------------------------------------------------------------
-        # Convert numeric columns
+        # Numeric conversion
         # ---------------------------------------------------------------------
 
         numeric_columns = [
@@ -178,30 +180,26 @@ try:
 
             with col3:
 
-                economy = top_bowler["ECONOMY"]
-
-                if pd.isna(economy):
-                    economy_text = "N/A"
+                if pd.isna(top_bowler["ECONOMY"]):
+                    value = "N/A"
                 else:
-                    economy_text = f"{economy:.2f}"
+                    value = f"{top_bowler['ECONOMY']:.2f}"
 
                 st.metric(
                     "⚡ Economy",
-                    economy_text
+                    value
                 )
 
             with col4:
 
-                bowling_average = top_bowler["BOWLING_AVERAGE"]
-
-                if pd.isna(bowling_average):
-                    average_text = "N/A"
+                if pd.isna(top_bowler["BOWLING_AVERAGE"]):
+                    value = "N/A"
                 else:
-                    average_text = f"{bowling_average:.2f}"
+                    value = f"{top_bowler['BOWLING_AVERAGE']:.2f}"
 
                 st.metric(
                     "📊 Bowling Average",
-                    average_text
+                    value
                 )
 
             st.divider()
@@ -292,6 +290,10 @@ try:
                 "🏆 Season-wise Purple Cap Leaders"
             )
 
+            # -----------------------------------------------------------------
+            # Get #1 bowler from every season
+            # -----------------------------------------------------------------
+
             leaders = (
                 df[
                     df["PLAYER_RANK"] == 1
@@ -357,13 +359,28 @@ try:
             "📊 Purple Cap Leaderboard"
         )
 
-        # Only top 10
-        display_df = (
-            df
-            .sort_values("PLAYER_RANK")
-            .head(10)
-            .copy()
-        )
+        if selected_season == "All Seasons":
+
+            # Top 10 from EVERY season
+            display_df = (
+                df[
+                    df["PLAYER_RANK"] <= 10
+                ]
+                .sort_values(
+                    ["SEASON", "PLAYER_RANK"]
+                )
+                .copy()
+            )
+
+        else:
+
+            # Top 10 from selected season
+            display_df = (
+                df
+                .sort_values("PLAYER_RANK")
+                .head(10)
+                .copy()
+            )
 
         display_df = display_df.rename(
             columns={
