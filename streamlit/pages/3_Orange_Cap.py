@@ -130,13 +130,17 @@ try:
 
     else:
 
-        # ---------------------------------------------------------------------
-        # When a specific season is selected
-        # ---------------------------------------------------------------------
+        # =====================================================================
+        # SPECIFIC SEASON
+        # =====================================================================
 
         if selected_season != "All Seasons":
 
             top_player = df.iloc[0]
+
+            # -----------------------------------------------------------------
+            # KPI Cards
+            # -----------------------------------------------------------------
 
             col1, col2, col3, col4 = st.columns(4)
 
@@ -153,29 +157,50 @@ try:
                 )
 
             with col3:
+                strike_rate = pd.to_numeric(
+                    top_player["STRIKE_RATE"],
+                    errors="coerce"
+                )
+
+                if pd.isna(strike_rate):
+                    strike_rate_text = "N/A"
+                else:
+                    strike_rate_text = f"{float(strike_rate):.2f}"
+
                 st.metric(
                     "⚡ Strike Rate",
-                    f"{float(top_player['STRIKE_RATE']):.2f}"
+                    strike_rate_text
                 )
 
             with col4:
+                batting_average = pd.to_numeric(
+                    top_player["BATTING_AVERAGE"],
+                    errors="coerce"
+                )
+
+                if pd.isna(batting_average):
+                    batting_average_text = "N/A"
+                else:
+                    batting_average_text = f"{float(batting_average):.2f}"
+
                 st.metric(
                     "📊 Batting Average",
-                    f"{float(top_player['BATTING_AVERAGE']):.2f}"
+                    batting_average_text
                 )
 
             st.divider()
 
             # -----------------------------------------------------------------
-            # Top 10
+            # Top 10 Run Scorers
             # -----------------------------------------------------------------
 
             st.subheader(
                 f"🏆 Top 10 Run Scorers — {selected_season}"
             )
 
-            top_10 = df.head(10).sort_values(
-                "TOTAL_RUNS"
+            top_10 = (
+                df.head(10)
+                .sort_values("TOTAL_RUNS")
             )
 
             fig = px.bar(
@@ -208,8 +233,27 @@ try:
 
             st.subheader("⚡ Strike Rate vs Total Runs")
 
+            scatter_df = df.head(50).copy()
+
+            scatter_df["STRIKE_RATE"] = pd.to_numeric(
+                scatter_df["STRIKE_RATE"],
+                errors="coerce"
+            )
+
+            scatter_df["SIXES"] = pd.to_numeric(
+                scatter_df["SIXES"],
+                errors="coerce"
+            )
+
+            scatter_df = scatter_df.dropna(
+                subset=[
+                    "TOTAL_RUNS",
+                    "STRIKE_RATE"
+                ]
+            )
+
             fig_scatter = px.scatter(
-                df.head(50),
+                scatter_df,
                 x="TOTAL_RUNS",
                 y="STRIKE_RATE",
                 size="SIXES",
@@ -223,51 +267,62 @@ try:
                 title=f"Runs vs Strike Rate — {selected_season}"
             )
 
+            fig_scatter.update_layout(
+                xaxis_title="Total Runs",
+                yaxis_title="Strike Rate"
+            )
+
             st.plotly_chart(
                 fig_scatter,
                 use_container_width=True
             )
 
-        # ---------------------------------------------------------------------
-        # All Seasons
-        # ---------------------------------------------------------------------
+        # =====================================================================
+        # ALL SEASONS
+        # =====================================================================
 
         else:
 
             st.subheader("🏆 Season-wise Orange Cap Leaders")
 
+            # Get rank 1 player from every season
             leaders = (
-                df[df["PLAYER_RANK"] == 1]
+                df[
+                    df["PLAYER_RANK"] == 1
+                ]
                 .sort_values("SEASON")
+                .copy()
             )
 
-            fig = px.bar(
-                leaders,
-                x="SEASON",
-                y="TOTAL_RUNS",
-                text="TOTAL_RUNS",
-                hover_name="BATSMAN",
-                title="Orange Cap Winner by Season"
-            )
+            if not leaders.empty:
 
-            fig.update_traces(
-                textposition="outside"
-            )
+                fig = px.bar(
+                    leaders,
+                    x="SEASON",
+                    y="TOTAL_RUNS",
+                    text="TOTAL_RUNS",
+                    hover_name="BATSMAN",
+                    title="Orange Cap Leader by Season"
+                )
 
-            fig.update_layout(
-                xaxis_title="Season",
-                yaxis_title="Total Runs",
-                showlegend=False
-            )
+                fig.update_traces(
+                    textposition="outside"
+                )
 
-            st.plotly_chart(
-                fig,
-                use_container_width=True
-            )
+                fig.update_layout(
+                    xaxis_title="Season",
+                    yaxis_title="Total Runs",
+                    showlegend=False
+                )
 
-        # ---------------------------------------------------------------------
-        # Leaderboard
-        # ---------------------------------------------------------------------
+                st.plotly_chart(
+                    fig,
+                    use_container_width=True
+                )
+
+        # =====================================================================
+        # LEADERBOARD
+        # =====================================================================
 
         st.subheader("📊 Orange Cap Leaderboard")
 
@@ -287,13 +342,29 @@ try:
             }
         )
 
-        display_df["Strike Rate"] = (
-            display_df["Strike Rate"].round(2)
+        # ---------------------------------------------------------------------
+        # Safely convert numeric columns
+        # ---------------------------------------------------------------------
+
+        display_df["Strike Rate"] = pd.to_numeric(
+            display_df["Strike Rate"],
+            errors="coerce"
+        ).round(2)
+
+        display_df["Batting Average"] = pd.to_numeric(
+            display_df["Batting Average"],
+            errors="coerce"
+        ).round(2)
+
+        # Batting average can legitimately be NULL
+        display_df["Batting Average"] = (
+            display_df["Batting Average"]
+            .fillna("N/A")
         )
 
-        display_df["Batting Average"] = (
-            display_df["Batting Average"].round(2)
-        )
+        # ---------------------------------------------------------------------
+        # Display
+        # ---------------------------------------------------------------------
 
         st.dataframe(
             display_df,
@@ -301,6 +372,10 @@ try:
             hide_index=True
         )
 
+
+# -----------------------------------------------------------------------------
+# Error Handling
+# -----------------------------------------------------------------------------
 
 except Exception as e:
 
