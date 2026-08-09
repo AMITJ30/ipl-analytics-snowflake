@@ -326,7 +326,7 @@ try:
 
         st.subheader("📊 Orange Cap Leaderboard")
 
-        display_df = df.copy()
+        display_df = df.head(10).copy()
 
         display_df = display_df.rename(
             columns={
