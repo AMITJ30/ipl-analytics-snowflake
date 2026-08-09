@@ -18,7 +18,7 @@ st.set_page_config(
 # Sidebar Filters
 # -----------------------------------------------------------------------------
 
-selected_season = show_sidebar_filters()
+selected_season, selected_team = show_sidebar_filters()
 
 
 # -----------------------------------------------------------------------------
@@ -48,3 +48,4 @@ st.markdown(
 st.success("Project setup completed successfully!")
 
 st.write("Selected Season:", selected_season)
+st.write("Selected Team:", selected_team)
