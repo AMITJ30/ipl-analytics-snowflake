@@ -92,6 +92,23 @@ SELECT
 FROM IPL_ANALYTICS.GOLD.ORANGE_CAP_BY_SEASON;
 
 --------------------------------------------------------------------------------
+-- VW_PURPLE_CAP_BY_SEASON
+--------------------------------------------------------------------------------
+CREATE OR REPLACE VIEW IPL_ANALYTICS.REPORTING.VW_PURPLE_CAP_BY_SEASON AS
+SELECT
+    SEASON,
+    PLAYER_RANK,
+    BOWLER,
+    WICKETS,
+    BALLS_BOWLED,
+    RUNS_CONCEDED,
+    DOT_BALLS,
+    ECONOMY,
+    BOWLING_STRIKE_RATE,
+    BOWLING_AVERAGE
+FROM IPL_ANALYTICS.GOLD.PURPLE_CAP_BY_SEASON;
+
+--------------------------------------------------------------------------------
 -- DASHBOARD SUMMARY
 --------------------------------------------------------------------------------
 
