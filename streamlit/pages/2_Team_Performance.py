@@ -23,9 +23,7 @@ st.set_page_config(
 st.title("🏆 Team Performance")
 
 st.markdown(
-    """
-    Analyze IPL team performance based on matches won.
-    """
+    "Analyze IPL team performance based on matches played, wins, losses and win percentage."
 )
 
 
@@ -39,9 +37,14 @@ def load_team_performance():
     conn = get_connection()
 
     query = """
-        SELECT *
+        SELECT
+            TEAM_NAME,
+            MATCHES_PLAYED,
+            MATCHES_WON,
+            MATCHES_LOST,
+            WIN_PERCENTAGE
         FROM REPORTING.VW_TEAM_PERFORMANCE
-        ORDER BY MATCHES_WON DESC
+        ORDER BY WIN_PERCENTAGE DESC
     """
 
     df = pd.read_sql(query, conn)
@@ -51,13 +54,13 @@ def load_team_performance():
     return df
 
 
+# -----------------------------------------------------------------------------
+# Main
+# -----------------------------------------------------------------------------
+
 try:
 
     df = load_team_performance()
-
-    # -------------------------------------------------------------------------
-    # Data Validation
-    # -------------------------------------------------------------------------
 
     if df.empty:
 
@@ -66,61 +69,67 @@ try:
     else:
 
         # ---------------------------------------------------------------------
-        # KPI
+        # Top Team
         # ---------------------------------------------------------------------
 
-        total_teams = len(df)
+        top_team = df.iloc[0]["TEAM_NAME"]
+        top_win_percentage = df.iloc[0]["WIN_PERCENTAGE"]
 
-        top_team = df.iloc[0]["TEAM"]
+        # ---------------------------------------------------------------------
+        # KPI Cards
+        # ---------------------------------------------------------------------
 
-        top_wins = int(df.iloc[0]["MATCHES_WON"])
-
-
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3, col4 = st.columns(4)
 
         with col1:
             st.metric(
                 "👥 Teams",
-                total_teams
+                len(df)
             )
 
         with col2:
             st.metric(
-                "🏆 Most Successful Team",
+                "🏆 Top Team",
                 top_team
             )
 
         with col3:
             st.metric(
-                "🥇 Most Wins",
-                f"{top_wins:,}"
+                "🥇 Matches Won",
+                f"{int(df.iloc[0]['MATCHES_WON']):,}"
             )
 
+        with col4:
+            st.metric(
+                "📈 Best Win %",
+                f"{float(top_win_percentage):.2f}%"
+            )
 
         st.divider()
 
-
         # ---------------------------------------------------------------------
-        # Team Wins Chart
+        # Win Percentage Chart
         # ---------------------------------------------------------------------
 
-        st.subheader("🏆 Matches Won by Team")
+        st.subheader("📈 Team Win Percentage")
 
         fig = px.bar(
             df,
-            x="TEAM",
-            y="MATCHES_WON",
-            text="MATCHES_WON",
-            title="IPL Matches Won by Team"
+            x="TEAM_NAME",
+            y="WIN_PERCENTAGE",
+            text="WIN_PERCENTAGE",
+            title="Win Percentage by Team"
         )
 
         fig.update_traces(
+            texttemplate="%{text:.1f}%",
             textposition="outside"
         )
 
         fig.update_layout(
             xaxis_title="Team",
-            yaxis_title="Matches Won",
+            yaxis_title="Win Percentage (%)",
+            yaxis=dict(range=[0, 100]),
             showlegend=False
         )
 
@@ -129,22 +138,55 @@ try:
             use_container_width=True
         )
 
+        # ---------------------------------------------------------------------
+        # Matches Won Chart
+        # ---------------------------------------------------------------------
+
+        st.subheader("🏆 Matches Won by Team")
+
+        fig_wins = px.bar(
+            df.sort_values("MATCHES_WON", ascending=False),
+            x="TEAM_NAME",
+            y="MATCHES_WON",
+            text="MATCHES_WON",
+            title="Total Matches Won"
+        )
+
+        fig_wins.update_traces(
+            textposition="outside"
+        )
+
+        fig_wins.update_layout(
+            xaxis_title="Team",
+            yaxis_title="Matches Won",
+            showlegend=False
+        )
+
+        st.plotly_chart(
+            fig_wins,
+            use_container_width=True
+        )
 
         # ---------------------------------------------------------------------
-        # Team Performance Table
+        # Detailed Table
         # ---------------------------------------------------------------------
 
         st.subheader("📊 Team Performance Details")
 
         display_df = df.copy()
 
-        display_df["MATCHES_WON"] = display_df["MATCHES_WON"].astype(int)
-
         display_df = display_df.rename(
             columns={
-                "TEAM": "Team",
-                "MATCHES_WON": "Matches Won"
+                "TEAM_NAME": "Team",
+                "MATCHES_PLAYED": "Matches Played",
+                "MATCHES_WON": "Matches Won",
+                "MATCHES_LOST": "Matches Lost",
+                "WIN_PERCENTAGE": "Win Percentage"
             }
+        )
+
+        display_df["Win Percentage"] = (
+            display_df["Win Percentage"].round(2)
         )
 
         st.dataframe(
