@@ -49,68 +49,55 @@ def load_orange_cap(season):
 
     conn = get_connection()
 
-    if season == "All Seasons":
+    query = """
+        SELECT
+            SEASON,
+            PLAYER_RANK,
+            BATSMAN,
+            TOTAL_RUNS,
+            BALLS_FACED,
+            FOURS,
+            SIXES,
+            STRIKE_RATE,
+            BATTING_AVERAGE
+        FROM IPL_ANALYTICS.REPORTING.VW_ORANGE_CAP_BY_SEASON
+    """
 
-        query = """
-            SELECT
-                SEASON,
-                PLAYER_RANK,
-                BATSMAN,
-                TOTAL_RUNS,
-                BALLS_FACED,
-                FOURS,
-                SIXES,
-                STRIKE_RATE,
-                BATTING_AVERAGE
-            FROM REPORTING.VW_ORANGE_CAP_BY_SEASON
-            ORDER BY SEASON, PLAYER_RANK
-        """
+    params = ()
 
-        df = pd.read_sql(query, conn)
-
-    else:
-
-        query = """
-            SELECT
-                SEASON,
-                PLAYER_RANK,
-                BATSMAN,
-                TOTAL_RUNS,
-                BALLS_FACED,
-                FOURS,
-                SIXES,
-                STRIKE_RATE,
-                BATTING_AVERAGE
-            FROM REPORTING.VW_ORANGE_CAP_BY_SEASON
+    if season != "All Seasons":
+        query += """
             WHERE SEASON = %s
-            ORDER BY PLAYER_RANK
         """
+        params = (season,)
 
-        cursor = conn.cursor()
+    query += """
+        ORDER BY SEASON, PLAYER_RANK
+    """
 
-        cursor.execute(query, (season,))
+    cursor = conn.cursor()
+    cursor.execute(query, params)
 
-        rows = cursor.fetchall()
+    rows = cursor.fetchall()
 
-        columns = [
-            "SEASON",
-            "PLAYER_RANK",
-            "BATSMAN",
-            "TOTAL_RUNS",
-            "BALLS_FACED",
-            "FOURS",
-            "SIXES",
-            "STRIKE_RATE",
-            "BATTING_AVERAGE"
-        ]
+    columns = [
+        "SEASON",
+        "PLAYER_RANK",
+        "BATSMAN",
+        "TOTAL_RUNS",
+        "BALLS_FACED",
+        "FOURS",
+        "SIXES",
+        "STRIKE_RATE",
+        "BATTING_AVERAGE"
+    ]
 
-        df = pd.DataFrame(
-            rows,
-            columns=columns
-        )
+    df = pd.DataFrame(
+        rows,
+        columns=columns
+    )
 
-        cursor.close()
-
+    cursor.close()
     conn.close()
 
     return df
@@ -130,11 +117,36 @@ try:
 
     else:
 
+        # ---------------------------------------------------------------------
+        # Numeric conversion
+        # ---------------------------------------------------------------------
+
+        numeric_columns = [
+            "PLAYER_RANK",
+            "TOTAL_RUNS",
+            "BALLS_FACED",
+            "FOURS",
+            "SIXES",
+            "STRIKE_RATE",
+            "BATTING_AVERAGE"
+        ]
+
+        for column in numeric_columns:
+
+            df[column] = pd.to_numeric(
+                df[column],
+                errors="coerce"
+            )
+
         # =====================================================================
         # SPECIFIC SEASON
         # =====================================================================
 
         if selected_season != "All Seasons":
+
+            df = df.sort_values(
+                "PLAYER_RANK"
+            )
 
             top_player = df.iloc[0]
 
@@ -145,47 +157,41 @@ try:
             col1, col2, col3, col4 = st.columns(4)
 
             with col1:
+
                 st.metric(
                     "🏆 Top Run Scorer",
                     top_player["BATSMAN"]
                 )
 
             with col2:
+
                 st.metric(
                     "🏏 Total Runs",
                     f"{int(top_player['TOTAL_RUNS']):,}"
                 )
 
             with col3:
-                strike_rate = pd.to_numeric(
-                    top_player["STRIKE_RATE"],
-                    errors="coerce"
-                )
 
-                if pd.isna(strike_rate):
-                    strike_rate_text = "N/A"
+                if pd.isna(top_player["STRIKE_RATE"]):
+                    value = "N/A"
                 else:
-                    strike_rate_text = f"{float(strike_rate):.2f}"
+                    value = f"{top_player['STRIKE_RATE']:.2f}"
 
                 st.metric(
                     "⚡ Strike Rate",
-                    strike_rate_text
+                    value
                 )
 
             with col4:
-                batting_average = pd.to_numeric(
-                    top_player["BATTING_AVERAGE"],
-                    errors="coerce"
-                )
 
-                if pd.isna(batting_average):
-                    batting_average_text = "N/A"
+                if pd.isna(top_player["BATTING_AVERAGE"]):
+                    value = "N/A"
                 else:
-                    batting_average_text = f"{float(batting_average):.2f}"
+                    value = f"{top_player['BATTING_AVERAGE']:.2f}"
 
                 st.metric(
                     "📊 Batting Average",
-                    batting_average_text
+                    value
                 )
 
             st.divider()
@@ -199,7 +205,9 @@ try:
             )
 
             top_10 = (
-                df.head(10)
+                df
+                .sort_values("PLAYER_RANK")
+                .head(10)
                 .sort_values("TOTAL_RUNS")
             )
 
@@ -231,19 +239,11 @@ try:
             # Strike Rate vs Runs
             # -----------------------------------------------------------------
 
-            st.subheader("⚡ Strike Rate vs Total Runs")
+            st.subheader(
+                "⚡ Strike Rate vs Total Runs"
+            )
 
             scatter_df = df.head(50).copy()
-
-            scatter_df["STRIKE_RATE"] = pd.to_numeric(
-                scatter_df["STRIKE_RATE"],
-                errors="coerce"
-            )
-
-            scatter_df["SIXES"] = pd.to_numeric(
-                scatter_df["SIXES"],
-                errors="coerce"
-            )
 
             scatter_df = scatter_df.dropna(
                 subset=[
@@ -267,11 +267,6 @@ try:
                 title=f"Runs vs Strike Rate — {selected_season}"
             )
 
-            fig_scatter.update_layout(
-                xaxis_title="Total Runs",
-                yaxis_title="Strike Rate"
-            )
-
             st.plotly_chart(
                 fig_scatter,
                 use_container_width=True
@@ -283,9 +278,14 @@ try:
 
         else:
 
-            st.subheader("🏆 Season-wise Orange Cap Leaders")
+            st.subheader(
+                "🏆 Season-wise Orange Cap Leaders"
+            )
 
-            # Get rank 1 player from every season
+            # -----------------------------------------------------------------
+            # Get #1 player from every season
+            # -----------------------------------------------------------------
+
             leaders = (
                 df[
                     df["PLAYER_RANK"] == 1
@@ -294,39 +294,85 @@ try:
                 .copy()
             )
 
-            if not leaders.empty:
+            season_order = [
+                "IPL-2008",
+                "IPL-2009",
+                "IPL-2010",
+                "IPL-2011",
+                "IPL-2012",
+                "IPL-2013",
+                "IPL-2014",
+                "IPL-2015",
+                "IPL-2016",
+                "IPL-2017",
+                "IPL-2018",
+                "IPL-2019"
+            ]
 
-                fig = px.bar(
-                    leaders,
-                    x="SEASON",
-                    y="TOTAL_RUNS",
-                    text="TOTAL_RUNS",
-                    hover_name="BATSMAN",
-                    title="Orange Cap Leader by Season"
-                )
+            leaders["SEASON"] = pd.Categorical(
+                leaders["SEASON"],
+                categories=season_order,
+                ordered=True
+            )
 
-                fig.update_traces(
-                    textposition="outside"
-                )
+            leaders = leaders.sort_values(
+                "SEASON"
+            )
 
-                fig.update_layout(
-                    xaxis_title="Season",
-                    yaxis_title="Total Runs",
-                    showlegend=False
-                )
+            fig = px.bar(
+                leaders,
+                x="SEASON",
+                y="TOTAL_RUNS",
+                text="TOTAL_RUNS",
+                hover_name="BATSMAN",
+                title="Orange Cap Leader by Season"
+            )
 
-                st.plotly_chart(
-                    fig,
-                    use_container_width=True
-                )
+            fig.update_traces(
+                textposition="outside"
+            )
+
+            fig.update_layout(
+                xaxis_title="Season",
+                yaxis_title="Total Runs",
+                showlegend=False
+            )
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True
+            )
 
         # =====================================================================
         # LEADERBOARD
         # =====================================================================
 
-        st.subheader("📊 Orange Cap Leaderboard")
+        st.subheader(
+            "📊 Orange Cap Leaderboard"
+        )
 
-        display_df = df.head(10).copy()
+        if selected_season == "All Seasons":
+
+            # Top 10 from EVERY season
+            display_df = (
+                df[
+                    df["PLAYER_RANK"] <= 10
+                ]
+                .sort_values(
+                    ["SEASON", "PLAYER_RANK"]
+                )
+                .copy()
+            )
+
+        else:
+
+            # Top 10 from selected season
+            display_df = (
+                df
+                .sort_values("PLAYER_RANK")
+                .head(10)
+                .copy()
+            )
 
         display_df = display_df.rename(
             columns={
@@ -342,29 +388,20 @@ try:
             }
         )
 
-        # ---------------------------------------------------------------------
-        # Safely convert numeric columns
-        # ---------------------------------------------------------------------
+        display_df["Strike Rate"] = (
+            display_df["Strike Rate"]
+            .round(2)
+        )
 
-        display_df["Strike Rate"] = pd.to_numeric(
-            display_df["Strike Rate"],
-            errors="coerce"
-        ).round(2)
+        display_df["Batting Average"] = (
+            display_df["Batting Average"]
+            .round(2)
+        )
 
-        display_df["Batting Average"] = pd.to_numeric(
-            display_df["Batting Average"],
-            errors="coerce"
-        ).round(2)
-
-        # Batting average can legitimately be NULL
         display_df["Batting Average"] = (
             display_df["Batting Average"]
             .fillna("N/A")
         )
-
-        # ---------------------------------------------------------------------
-        # Display
-        # ---------------------------------------------------------------------
 
         st.dataframe(
             display_df,
@@ -379,6 +416,10 @@ try:
 
 except Exception as e:
 
-    st.error("❌ Unable to load Orange Cap data.")
+    st.error(
+        "❌ Unable to load Orange Cap data."
+    )
 
-    st.code(str(e))
+    st.code(
+        str(e)
+    )
