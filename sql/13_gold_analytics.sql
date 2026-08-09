@@ -479,6 +479,118 @@ FROM TEAM_HEAD_TO_HEAD
 LIMIT 10;
 
 --------------------------------------------------------------------------------
+-- ORANGE_CAP_BY_SEASON
+--------------------------------------------------------------------------------
+CREATE OR REPLACE TABLE GOLD.ORANGE_CAP_BY_SEASON AS
+
+WITH PLAYER_STATS AS (
+
+    SELECT
+        M.SEASON,
+        D.BATSMAN,
+
+        SUM(D.BATSMAN_RUNS) AS TOTAL_RUNS,
+
+        COUNT(*) AS BALLS_FACED,
+
+        SUM(
+            CASE
+                WHEN D.IS_FOUR = TRUE THEN 1
+                ELSE 0
+            END
+        ) AS FOURS,
+
+        SUM(
+            CASE
+                WHEN D.IS_SIX = TRUE THEN 1
+                ELSE 0
+            END
+        ) AS SIXES,
+
+        COUNT(
+            DISTINCT CASE
+                WHEN D.PLAYER_DISMISSED = D.BATSMAN
+                THEN D.MATCH_ID || '-' || D.INNING
+            END
+        ) AS DISMISSALS
+
+    FROM SILVER.FACT_DELIVERY D
+
+    INNER JOIN SILVER.FACT_MATCH M
+        ON D.MATCH_ID = M.MATCH_ID
+
+    GROUP BY
+        M.SEASON,
+        D.BATSMAN
+),
+
+CALCULATED_STATS AS (
+
+    SELECT
+        SEASON,
+        BATSMAN,
+        TOTAL_RUNS,
+        BALLS_FACED,
+        FOURS,
+        SIXES,
+
+        ROUND(
+            TOTAL_RUNS * 100.0 /
+            NULLIF(BALLS_FACED, 0),
+            2
+        ) AS STRIKE_RATE,
+
+        ROUND(
+            TOTAL_RUNS * 1.0 /
+            NULLIF(DISMISSALS, 0),
+            2
+        ) AS BATTING_AVERAGE
+
+    FROM PLAYER_STATS
+),
+
+RANKED_PLAYERS AS (
+
+    SELECT
+        SEASON,
+
+        ROW_NUMBER() OVER (
+            PARTITION BY SEASON
+            ORDER BY TOTAL_RUNS DESC
+        ) AS PLAYER_RANK,
+
+        BATSMAN,
+        TOTAL_RUNS,
+        BALLS_FACED,
+        FOURS,
+        SIXES,
+        STRIKE_RATE,
+        BATTING_AVERAGE
+
+    FROM CALCULATED_STATS
+)
+
+SELECT
+    SEASON,
+    PLAYER_RANK,
+    BATSMAN,
+    TOTAL_RUNS,
+    BALLS_FACED,
+    FOURS,
+    SIXES,
+    STRIKE_RATE,
+    BATTING_AVERAGE
+
+FROM RANKED_PLAYERS;
+--------------------------------------------------------------------------------
+-- VALIDATION
+--------------------------------------------------------------------------------
+SELECT *
+FROM GOLD.ORANGE_CAP_BY_SEASON
+WHERE SEASON = 'IPL-2008'
+ORDER BY PLAYER_RANK
+LIMIT 10;
+--------------------------------------------------------------------------------
 -- DASHBOARD SUMMARY
 --------------------------------------------------------------------------------
 
