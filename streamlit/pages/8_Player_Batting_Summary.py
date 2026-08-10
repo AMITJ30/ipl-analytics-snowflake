@@ -46,7 +46,6 @@ def load_batting_data():
 
     query = """
         SELECT
-            PLAYER_RANK,
             BATSMAN,
             TOTAL_RUNS,
             BALLS_FACED,
@@ -55,7 +54,7 @@ def load_batting_data():
             STRIKE_RATE,
             BATTING_AVERAGE
         FROM IPL_ANALYTICS.REPORTING.VW_PLAYER_BATTING_SUMMARY
-        ORDER BY PLAYER_RANK
+        ORDER BY TOTAL_RUNS DESC
     """
 
     cursor = conn.cursor()
@@ -65,7 +64,6 @@ def load_batting_data():
     rows = cursor.fetchall()
 
     columns = [
-        "PLAYER_RANK",
         "BATSMAN",
         "TOTAL_RUNS",
         "BALLS_FACED",
@@ -107,7 +105,6 @@ try:
         # ---------------------------------------------------------------------
 
         numeric_columns = [
-            "PLAYER_RANK",
             "TOTAL_RUNS",
             "BALLS_FACED",
             "FOURS",
@@ -123,8 +120,21 @@ try:
                 errors="coerce"
             )
 
-        df = df.sort_values(
-            "PLAYER_RANK"
+        # ---------------------------------------------------------------------
+        # Create Player Rank
+        # ---------------------------------------------------------------------
+
+        df = (
+            df
+            .sort_values(
+                "TOTAL_RUNS",
+                ascending=False
+            )
+            .reset_index(drop=True)
+        )
+
+        df["PLAYER_RANK"] = (
+            df.index + 1
         )
 
         # =====================================================================
@@ -231,12 +241,16 @@ try:
             "⚡ Runs vs Strike Rate"
         )
 
-        scatter_df = df.dropna(
-            subset=[
-                "TOTAL_RUNS",
-                "STRIKE_RATE"
-            ]
-        ).copy()
+        scatter_df = (
+            df
+            .dropna(
+                subset=[
+                    "TOTAL_RUNS",
+                    "STRIKE_RATE"
+                ]
+            )
+            .copy()
+        )
 
         fig_scatter = px.scatter(
             scatter_df,
@@ -338,20 +352,35 @@ try:
             }
         )
 
+        # ---------------------------------------------------------------------
+        # Round decimal columns safely
+        # ---------------------------------------------------------------------
+
         display_df["Strike Rate"] = (
-            display_df["Strike Rate"]
+            pd.to_numeric(
+                display_df["Strike Rate"],
+                errors="coerce"
+            )
             .round(2)
         )
 
         display_df["Batting Average"] = (
-            display_df["Batting Average"]
+            pd.to_numeric(
+                display_df["Batting Average"],
+                errors="coerce"
+            )
             .round(2)
         )
 
+        # Batting average can be NULL
         display_df["Batting Average"] = (
             display_df["Batting Average"]
             .fillna("N/A")
         )
+
+        # ---------------------------------------------------------------------
+        # Display Leaderboard
+        # ---------------------------------------------------------------------
 
         st.dataframe(
             display_df,
