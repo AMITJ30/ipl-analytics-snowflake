@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from utils.connection import get_connection
+from utils.filters import show_sidebar_filters
 
 
 # -----------------------------------------------------------------------------
@@ -11,16 +12,23 @@ from utils.connection import get_connection
 
 st.set_page_config(
     page_title="Team Head-to-Head",
-    page_icon="⚔️",
+    page_icon="🤝",
     layout="wide"
 )
+
+
+# -----------------------------------------------------------------------------
+# Sidebar Filters
+# -----------------------------------------------------------------------------
+
+selected_season, selected_team = show_sidebar_filters()
 
 
 # -----------------------------------------------------------------------------
 # Page Header
 # -----------------------------------------------------------------------------
 
-st.title("⚔️ Team Head-to-Head")
+st.title("🤝 Team Head-to-Head")
 
 st.markdown(
     "Compare the historical IPL performance of two teams."
@@ -46,11 +54,33 @@ def load_head_to_head():
             NO_RESULT_MATCHES,
             TEAM1_WIN_PERCENTAGE,
             TEAM2_WIN_PERCENTAGE
-        FROM REPORTING.VW_TEAM_HEAD_TO_HEAD
+        FROM IPL_ANALYTICS.REPORTING.VW_TEAM_HEAD_TO_HEAD
+        ORDER BY MATCHES_PLAYED DESC
     """
 
-    df = pd.read_sql(query, conn)
+    cursor = conn.cursor()
 
+    cursor.execute(query)
+
+    rows = cursor.fetchall()
+
+    columns = [
+        "TEAM1",
+        "TEAM2",
+        "MATCHES_PLAYED",
+        "TEAM1_WINS",
+        "TEAM2_WINS",
+        "NO_RESULT_MATCHES",
+        "TEAM1_WIN_PERCENTAGE",
+        "TEAM2_WIN_PERCENTAGE"
+    ]
+
+    df = pd.DataFrame(
+        rows,
+        columns=columns
+    )
+
+    cursor.close()
     conn.close()
 
     return df
@@ -66,41 +96,70 @@ try:
 
     if df.empty:
 
-        st.warning("No head-to-head data available.")
+        st.warning(
+            "No head-to-head data available."
+        )
 
     else:
 
         # ---------------------------------------------------------------------
-        # Team Selection
+        # Numeric Conversion
         # ---------------------------------------------------------------------
 
+        numeric_columns = [
+            "MATCHES_PLAYED",
+            "TEAM1_WINS",
+            "TEAM2_WINS",
+            "NO_RESULT_MATCHES",
+            "TEAM1_WIN_PERCENTAGE",
+            "TEAM2_WIN_PERCENTAGE"
+        ]
+
+        for column in numeric_columns:
+
+            df[column] = pd.to_numeric(
+                df[column],
+                errors="coerce"
+            )
+
+        # =====================================================================
+        # TEAM SELECTION
+        # =====================================================================
+
+        st.subheader("🔎 Select Teams")
+
         teams = sorted(
-            set(df["TEAM1"].dropna()) |
-            set(df["TEAM2"].dropna())
+            set(df["TEAM1"].dropna())
+            | set(df["TEAM2"].dropna())
         )
 
         col1, col2 = st.columns(2)
 
         with col1:
+
             team1 = st.selectbox(
-                "Select Team 1",
-                teams
+                "Team 1",
+                teams,
+                index=0
             )
+
+        # Try to make Team 2 different from Team 1
+        team2_options = [
+            team for team in teams
+            if team != team1
+        ]
 
         with col2:
-            team2_options = [
-                team for team in teams
-                if team != team1
-            ]
 
             team2 = st.selectbox(
-                "Select Team 2",
-                team2_options
+                "Team 2",
+                team2_options,
+                index=0
             )
 
-        # ---------------------------------------------------------------------
-        # Find Matchup
-        # ---------------------------------------------------------------------
+        # =====================================================================
+        # FIND MATCHUP
+        # =====================================================================
 
         matchup = df[
             (
@@ -112,21 +171,26 @@ try:
                 (df["TEAM1"] == team2) &
                 (df["TEAM2"] == team1)
             )
-        ]
+        ].copy()
+
+        # ---------------------------------------------------------------------
+        # Handle matchup not found
+        # ---------------------------------------------------------------------
 
         if matchup.empty:
 
-            st.warning(
-                f"No head-to-head data found for {team1} vs {team2}."
+            st.info(
+                f"No head-to-head record found between "
+                f"**{team1}** and **{team2}**."
             )
 
         else:
 
             row = matchup.iloc[0]
 
-            # -----------------------------------------------------------------
-            # Normalize Team Statistics
-            # -----------------------------------------------------------------
+            # -------------------------------------------------------------
+            # Normalize team statistics
+            # -------------------------------------------------------------
 
             if row["TEAM1"] == team1:
 
@@ -154,73 +218,155 @@ try:
                     row["TEAM1_WIN_PERCENTAGE"]
                 )
 
-            matches_played = int(row["MATCHES_PLAYED"])
+            matches_played = int(
+                row["MATCHES_PLAYED"]
+            )
 
-            no_results = int(row["NO_RESULT_MATCHES"])
+            no_results = int(
+                row["NO_RESULT_MATCHES"]
+            )
 
-            # -----------------------------------------------------------------
-            # KPI Cards
-            # -----------------------------------------------------------------
+            # =============================================================
+            # KPI CARDS
+            # =============================================================
 
             st.divider()
 
             col1, col2, col3, col4 = st.columns(4)
 
             with col1:
+
                 st.metric(
                     "🏏 Matches Played",
                     matches_played
                 )
 
             with col2:
+
                 st.metric(
                     f"🏆 {team1} Wins",
                     team1_wins
                 )
 
             with col3:
+
                 st.metric(
                     f"🏆 {team2} Wins",
                     team2_wins
                 )
 
             with col4:
+
                 st.metric(
-                    "➖ No Results",
+                    "❌ No Results",
                     no_results
                 )
 
-            # -----------------------------------------------------------------
-            # Win Percentage
-            # -----------------------------------------------------------------
+            # =============================================================
+            # WIN PERCENTAGE
+            # =============================================================
 
-            st.subheader("📊 Win Percentage")
+            st.subheader(
+                "📊 Win Percentage"
+            )
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+
+                st.metric(
+                    team1,
+                    f"{team1_percentage:.2f}%"
+                )
+
+            with col2:
+
+                st.metric(
+                    team2,
+                    f"{team2_percentage:.2f}%"
+                )
+
+            # =============================================================
+            # WIN COMPARISON CHART
+            # =============================================================
+
+            st.subheader(
+                "🏆 Head-to-Head Win Comparison"
+            )
+
+            chart_df = pd.DataFrame(
+                {
+                    "Team": [
+                        team1,
+                        team2
+                    ],
+                    "Wins": [
+                        team1_wins,
+                        team2_wins
+                    ]
+                }
+            )
+
+            fig = go.Figure()
+
+            fig.add_trace(
+                go.Bar(
+                    x=chart_df["Team"],
+                    y=chart_df["Wins"],
+                    text=chart_df["Wins"],
+                    textposition="outside"
+                )
+            )
+
+            fig.update_layout(
+                title=f"{team1} vs {team2}",
+                xaxis_title="Team",
+                yaxis_title="Wins",
+                showlegend=False
+            )
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True
+            )
+
+            # =============================================================
+            # WIN PERCENTAGE CHART
+            # =============================================================
+
+            percentage_df = pd.DataFrame(
+                {
+                    "Team": [
+                        team1,
+                        team2
+                    ],
+                    "Win Percentage": [
+                        team1_percentage,
+                        team2_percentage
+                    ]
+                }
+            )
 
             fig_percentage = go.Figure()
 
             fig_percentage.add_trace(
                 go.Bar(
-                    x=[team1],
-                    y=[team1_percentage],
-                    text=[f"{team1_percentage:.2f}%"],
-                    textposition="auto",
-                    name=team1
-                )
-            )
-
-            fig_percentage.add_trace(
-                go.Bar(
-                    x=[team2],
-                    y=[team2_percentage],
-                    text=[f"{team2_percentage:.2f}%"],
-                    textposition="auto",
-                    name=team2
+                    x=percentage_df["Team"],
+                    y=percentage_df["Win Percentage"],
+                    text=[
+                        f"{value:.2f}%"
+                        for value in percentage_df[
+                            "Win Percentage"
+                        ]
+                    ],
+                    textposition="outside"
                 )
             )
 
             fig_percentage.update_layout(
+                title="Win Percentage Comparison",
+                xaxis_title="Team",
                 yaxis_title="Win Percentage (%)",
-                yaxis=dict(range=[0, 100]),
                 showlegend=False
             )
 
@@ -229,78 +375,56 @@ try:
                 use_container_width=True
             )
 
-            # -----------------------------------------------------------------
-            # Wins Comparison
-            # -----------------------------------------------------------------
+        # =====================================================================
+        # ALL HEAD-TO-HEAD MATCHUPS
+        # =====================================================================
 
-            st.subheader("🏆 Wins Comparison")
+        st.subheader(
+            "📋 Head-to-Head Leaderboard"
+        )
 
-            fig_wins = go.Figure()
+        display_df = df.copy()
 
-            fig_wins.add_trace(
-                go.Bar(
-                    x=[team1],
-                    y=[team1_wins],
-                    text=[team1_wins],
-                    textposition="auto",
-                    name=team1
-                )
-            )
+        display_df = display_df.rename(
+            columns={
+                "TEAM1": "Team 1",
+                "TEAM2": "Team 2",
+                "MATCHES_PLAYED": "Matches Played",
+                "TEAM1_WINS": "Team 1 Wins",
+                "TEAM2_WINS": "Team 2 Wins",
+                "NO_RESULT_MATCHES": "No Results",
+                "TEAM1_WIN_PERCENTAGE": "Team 1 Win %",
+                "TEAM2_WIN_PERCENTAGE": "Team 2 Win %"
+            }
+        )
 
-            fig_wins.add_trace(
-                go.Bar(
-                    x=[team2],
-                    y=[team2_wins],
-                    text=[team2_wins],
-                    textposition="auto",
-                    name=team2
-                )
-            )
+        display_df["Team 1 Win %"] = (
+            display_df["Team 1 Win %"]
+            .round(2)
+        )
 
-            fig_wins.update_layout(
-                yaxis_title="Matches Won",
-                showlegend=False
-            )
+        display_df["Team 2 Win %"] = (
+            display_df["Team 2 Win %"]
+            .round(2)
+        )
 
-            st.plotly_chart(
-                fig_wins,
-                use_container_width=True
-            )
+        st.dataframe(
+            display_df,
+            use_container_width=True,
+            hide_index=True
+        )
 
-            # -----------------------------------------------------------------
-            # Summary
-            # -----------------------------------------------------------------
 
-            st.subheader("📋 Head-to-Head Summary")
-
-            summary_df = pd.DataFrame({
-                "Team": [
-                    team1,
-                    team2
-                ],
-                "Wins": [
-                    team1_wins,
-                    team2_wins
-                ],
-                "Win Percentage": [
-                    team1_percentage,
-                    team2_percentage
-                ]
-            })
-
-            summary_df["Win Percentage"] = (
-                summary_df["Win Percentage"].round(2)
-            )
-
-            st.dataframe(
-                summary_df,
-                use_container_width=True,
-                hide_index=True
-            )
-
+# -----------------------------------------------------------------------------
+# Error Handling
+# -----------------------------------------------------------------------------
 
 except Exception as e:
 
-    st.error("❌ Unable to load head-to-head data.")
+    st.error(
+        "❌ Unable to load head-to-head data."
+    )
 
-    st.code(str(e))
+    st.code(
+        str(e)
+    )
